@@ -36,7 +36,7 @@ on:
           - rk3588-orangepi-5plus
           - rk3588s-orangepi-5
       rootfs_url:
-        description: "Upload ROOTFS via link (MEGA,mediafire,GDrive)"
+        description: "Upload ROOTFS via link (GitHub, MEGA, Mediafire, GDrive)"
         required: false
         default: ""
       rootfs:
@@ -59,7 +59,7 @@ jobs:
     permissions:
       contents: write
     name: ULO Autobuilder
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       
       - name: Cleanup and Installing Prerequisites
@@ -68,13 +68,15 @@ jobs:
         run: |
           docker rmi `docker images -q`
           sudo -E apt-get update
-          sudo -E apt-get -y install lolcat build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget
+          sudo -E apt-get -y install lolcat build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git \
+            libncurses-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget p7zip-full
           sudo -E apt-get -y autoremove --purge
           sudo -E apt-get clean
-          sudo pip3 install gdown
-          sudo pip3 install git+https://github.com/Juvenal-Yescas/mediafire-dl
-          wget https://mega.nz/linux/repo/xUbuntu_20.04/amd64/megacmd-xUbuntu_20.04_amd64.deb && sudo apt install "$PWD/megacmd-xUbuntu_20.04_amd64.deb"
-                    
+          sudo apt-get -y install python3-pip
+          pip3 install --upgrade gdown
+          pip3 install git+https://github.com/Juvenal-Yescas/mediafire-dl
+          wget https://mega.nz/linux/repo/xUbuntu_22.04/amd64/megacmd-xUbuntu_22.04_amd64.deb && sudo apt install "$PWD/megacmd-xUbuntu_22.04_amd64.deb"
+
       - name: Checkout Repository
         uses: actions/checkout@v3
         with:
@@ -82,31 +84,35 @@ jobs:
 
       - name: Download ROOTFS via link
         run: |
-          if [ $(echo ${{ inputs.rootfs_url }} | grep "drive.") ]; then
-            if [ $(echo ${{ inputs.rootfs_url }} | awk -F "/" '{print $6}') ]; then
-              link_gdrive=$(echo ${{ inputs.rootfs_url }} | awk -F "/" '{print $6}')
+          mkdir -p ./rootfs
+          if [[ -n "${{ inputs.rootfs_url }}" ]]; then
+            if [[ "${{ inputs.rootfs_url }}" == *"drive.google.com"* ]]; then
+              file_id=$(echo ${{ inputs.rootfs_url }} | awk -F'/' '{print $6}')
+              gdown --id ${file_id} -O ./rootfs/rootfs.tar.gz
+
+            elif [[ "${{ inputs.rootfs_url }}" == *"mediafire.com"* ]]; then
+              mediafire-dl ${{ inputs.rootfs_url }} -o ./rootfs/rootfs.tar.gz
+
+            elif [[ "${{ inputs.rootfs_url }}" == *"mega.nz"* ]]; then
+              mega-get ${{ inputs.rootfs_url }}
+              file_mega=$(ls rootfs | grep -E '\.tar\.gz$')
+              mv "rootfs/${file_mega}" ./rootfs/rootfs.tar.gz
+
+            elif [[ "${{ inputs.rootfs_url }}" == *"github.com"* && "${{ inputs.rootfs_url }}" == *"/releases/download/"* ]]; then
+              wget --header="Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                   --no-check-certificate \
+                   -O ./rootfs/rootfs.tar.gz \
+                   ${{ inputs.rootfs_url }}
+
             else
-              link_gdrive=$(echo ${{ inputs.rootfs_url }} | awk -F "/" '{print $4}' | awk -F "?id=" '{print $2}'|awk -F "&export" '{print $1}')
-            fi
-          sudo gdown ${link_gdrive} -O ./rootfs/rootfs.tar.gz
-          else
-            if [ $(echo ${{ inputs.rootfs_url }} | grep "mediafire.com") ]; then
-             sudo mediafire-dl ${{ inputs.rootfs_url }} ./rootfs
-             else
-              if [ $(echo ${{ inputs.rootfs_url }} | grep "mega.nz") ]; then
-                file_mega=$(sudo mega-get ${{ inputs.rootfs_url }} | awk -F: '{print $2}')
-               sudo mv ${file_mega} ./rootfs
-              else
-                sudo wget -q --no-check-certificate ${{ inputs.rootfs_url }} -P ./rootfs
-              fi
+              wget --no-check-certificate ${{ inputs.rootfs_url }} -O ./rootfs/rootfs.tar.gz
             fi
           fi
-        
-          
+
       - name: Building OpenWrt
         run: |
           sudo ./ulo -k ${{ inputs.kernel }} -m ${{ inputs.devices }} -r ${{ inputs.rootfs }} -s ${{ inputs.rootfs_size }}
-          
+
       - name: Creating Package Artifact
         run: |
           mkdir -p ./artifact
