@@ -43,7 +43,7 @@ on:
       versi:
         description: "Pilih ULO / ULO2"
         required: true
-        default: "ulo"     
+        default: "ulo2"     
         type: choice
         options:
           - ulo
@@ -103,37 +103,28 @@ jobs:
         id: date
         run: echo "date=$(date +'%d-%m-%y %H:%M:%S')" >> $GITHUB_OUTPUT
    
+          
       - name: Download file ${{ github.event.inputs.type_file }}
         run: |
-          if [ $(echo ${{ github.event.inputs.img_url }} | grep "drive.") ]; then
-            if [ $(echo ${{ github.event.inputs.img_url }} | awk -F "/" '{print $6}') ]; then
-              link_gdrive=$(echo ${{ github.event.inputs.img_url }} | awk -F "/" '{print $6}')
+           if [ $(echo ${{ github.event.inputs.img_url }} | grep "drive.") ]; then
+           if [ $(echo ${{ github.event.inputs.img_url }} | awk -F "/" '{print $6}') ]; then
+            link_gdrive=$(echo ${{ github.event.inputs.img_url }} | awk -F "/" '{print $6}')
+           else
+            link_gdrive=$(echo ${{ github.event.inputs.img_url }} | awk -F "/" '{print $4}' | awk -F "?id=" '{print $2}'|awk -F "&export" '{print $1}')
+           fi
+           sudo gdown ${link_gdrive} -O build/file.${{ github.event.inputs.type_file }}
+           else
+           if [ $(echo ${{ github.event.inputs.img_url }} | grep "mediafire.com") ]; then
+            sudo mediafire-dl ${{ github.event.inputs.img_url }} -o build/file.${{ github.event.inputs.type_file }}
             else
-              link_gdrive=$(echo ${{ github.event.inputs.img_url }} | awk -F "/" '{print $4}' | awk -F "?id=" '{print $2}' | awk -F "&export" '{print $1}')
-            fi
-            sudo gdown ${link_gdrive} -O build/file.${{ github.event.inputs.type_file }}
-          else
-            if [ $(echo ${{ github.event.inputs.img_url }} | grep "mediafire.com") ]; then
-               sudo mediafire-dl ${{ github.event.inputs.img_url }} -o build/file.${{ github.event.inputs.type_file }}
+            if [ $(echo ${{ github.event.inputs.img_url }} | grep "mega.nz") ]; then
+              file_mega=$(sudo mega-get ${{ github.event.inputs.img_url }} | awk -F: '{print $2}')
+              sudo mv ${file_mega} build/file.${{ github.event.inputs.type_file }}
             else
-              if [ $(echo ${{ github.event.inputs.img_url }} | grep "mega.nz") ]; then
-                file_mega=$(sudo mega-get ${{ github.event.inputs.img_url }} | awk -F: '{print $2}')
-                sudo mv ${file_mega} build/file.${{ github.event.inputs.type_file }}
-              else
-                if [ $(echo ${{ github.event.inputs.img_url }} | grep "github.com") ] || [ $(echo ${{ github.event.inputs.img_url }} | grep "raw.githubusercontent.com") ]; then
-                  sudo wget --no-check-certificate ${{ github.event.inputs.img_url }} -O build/file.${{ github.event.inputs.type_file }}
-                else
-                  if [ $(echo ${{ github.event.inputs.img_url }} | grep "github.com" | grep "releases/download") ]; then
-                    sudo wget --no-check-certificate --content-disposition ${{ github.event.inputs.img_url }} -O build/file.${{ github.event.inputs.type_file }}
-                  else
-                    sudo wget --no-check-certificate ${{ github.event.inputs.img_url }} -O build/file.${{ github.event.inputs.type_file }}
-                  fi
-                fi
-              fi
+              sudo wget --no-check-certificate ${{ github.event.inputs.img_url }} -O build/file.${{ github.event.inputs.type_file }}
             fi
-          fi
-
-
+           fi
+           fi
       - name: Extract firmware
         id: extract
         run: |  
@@ -147,9 +138,9 @@ jobs:
              los=$(sudo losetup -fP --show file.img)
              sudo mount ${los}p2 rootfs
              (cd rootfs && sudo tar cfz /home/runner/work/ULO-Builder/ULO-Builder/rootfs/${{ inputs.rename_rootfs }}.tar.gz *)
-      
       - name: Building OpenWrt
         run: |
+          sudo chmod +x ulo2
           sudo chmod +x ulo
           sudo ./${{ inputs.versi }} -m ${{ inputs.devices }} -k ${{ inputs.kernel }} -s ${{ inputs.rootfs_size }}
           
