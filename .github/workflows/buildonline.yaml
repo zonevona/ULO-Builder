@@ -112,15 +112,25 @@ jobs:
         run: |
           mkdir -p build
           cd build
+
           if [[ "${{ inputs.img_url }}" == *"drive.google.com"* ]]; then
             file_id=$(echo ${{ inputs.img_url }} | awk -F'/' '{print $6}')
             gdown --id ${file_id} -O file.${{ inputs.type_file }}
+
           elif [[ "${{ inputs.img_url }}" == *"mediafire.com"* ]]; then
             mediafire-dl ${{ inputs.img_url }} -o file.${{ inputs.type_file }}
+
           elif [[ "${{ inputs.img_url }}" == *"mega.nz"* ]]; then
             mega-get ${{ inputs.img_url }}
             file_mega=$(ls | grep -E '\.img(\.gz|\.xz)?$')
             mv ${file_mega} file.${{ inputs.type_file }}
+
+          elif [[ "${{ inputs.img_url }}" == *"github.com"* && "${{ inputs.img_url }}" == *"/releases/download/"* ]]; then
+            wget --header="Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                 --no-check-certificate \
+                 -O file.${{ inputs.type_file }} \
+                 ${{ inputs.img_url }}
+
           else
             wget --no-check-certificate ${{ inputs.img_url }} -O file.${{ inputs.type_file }}
           fi
