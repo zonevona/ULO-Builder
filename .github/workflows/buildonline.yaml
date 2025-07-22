@@ -136,25 +136,39 @@ jobs:
           fi
 
       - name: Extract firmware
-        run: |  
+        run: |
           cd build
           sudo mkdir -p boot rootfs img
+          
+          echo "📦 Mengekstrak file image..."
           if [[ "${{ inputs.type_file }}" == "img.gz" ]]; then
             sudo gunzip file.img.gz
           else
             sudo unxz file.img.xz
           fi
+          
+          echo "🔄 Meng-attach file.img ke loop device..."
           los=$(sudo losetup -fP --show file.img)
+          echo "✅ Loop device: $los"
+          echo "🧾 Daftar partisi:"
+          ls -l ${los}*
+
+          # Coba mount partisi p2, jika tidak ada coba p1, jika tidak ada coba langsung
           if [ -e ${los}p2 ]; then
+            echo "📁 Mounting partisi kedua (${los}p2)..."
             sudo mount ${los}p2 rootfs
           elif [ -e ${los}p1 ]; then
+            echo "📁 Partisi kedua tidak ditemukan. Mounting partisi pertama (${los}p1)..."
             sudo mount ${los}p1 rootfs
           else
-            echo "Tidak ditemukan partisi p1/p2. Mungkin image raw? Coba mount langsung loop device."
+            echo "⚠️ Tidak ditemukan partisi p1/p2. Coba mounting langsung ke ${los} (raw image)..."
             sudo mount ${los} rootfs
           fi
 
+          echo "📦 Membuat arsip rootfs..."
           (cd rootfs && sudo tar cfz /home/runner/work/ULO-Builder/ULO-Builder/rootfs/${{ inputs.rename_rootfs }}.tar.gz .)
+
+          echo "✅ Extract selesai"
 
       - name: Building OpenWrt
         run: |
