@@ -145,7 +145,15 @@ jobs:
             sudo unxz file.img.xz
           fi
           los=$(sudo losetup -fP --show file.img)
-          sudo mount ${los}p2 rootfs
+          if [ -e ${los}p2 ]; then
+            sudo mount ${los}p2 rootfs
+          elif [ -e ${los}p1 ]; then
+            sudo mount ${los}p1 rootfs
+          else
+            echo "Tidak ditemukan partisi p1/p2. Mungkin image raw? Coba mount langsung loop device."
+            sudo mount ${los} rootfs
+          fi
+
           (cd rootfs && sudo tar cfz /home/runner/work/ULO-Builder/ULO-Builder/rootfs/${{ inputs.rename_rootfs }}.tar.gz .)
 
       - name: Building OpenWrt
